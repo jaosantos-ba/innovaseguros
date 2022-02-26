@@ -2,13 +2,13 @@
 <!DOCTYPE html>
 <html>
 	<head>
-		
+	
 		<!-- Required meta tags -->
 		<meta charset="UTF-8">
 		<meta name="author" content="José Santos">
 		
 		<!-- Title -->
-		<title>Innova Corretora de Seguros - Consultoria empresarial para VOCÊ, sua FAMÍLIA e EMPRESA ficarem tranquilos e protegidos</title>
+		<title>Innova Corretora de Seguros</title>
 		
 		<!-- Bootstrap CSS -->
 		<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-+0n0xVW2eSR5OomGNYDnhzAbDsOXxcvSN1TPprVMTNDbiYZCxYbOOl7+AMvyTG2x" crossorigin="anonymous">
@@ -24,7 +24,23 @@
 		<link rel="icon" href="./img/index/favicon.ico">
 		
 		<!-- CSS -->
-		<link rel="stylesheet" type="text/css" href="./css/index.css">
+		<link rel="stylesheet" type="text/css" href="index.css">
+		
+		<style>
+	      .bd-placeholder-img {
+	        font-size: 1.125rem;
+	        text-anchor: middle;
+	        -webkit-user-select: none;
+	        -moz-user-select: none;
+	        user-select: none;
+	      }
+	
+	      @media (min-width: 768px) {
+	        .bd-placeholder-img-lg {
+	          font-size: 3.5rem;
+	        }
+	      }
+	    </style>
 		
 	</head>
 </html>
