@@ -15,6 +15,31 @@
     };
   }
 
+  
+  function ensureFavicon() {
+    const p = paths();
+    const head = document.head;
+    if (!head) return;
+
+    const faviconHref = `${p.assets}/img/favicon.ico`;
+    const pngHref = `${p.assets}/img/favicon.png`;
+
+    function upsertLink(rel, href, type) {
+      let el = head.querySelector(`link[rel="${rel}"]`);
+      if (!el) {
+        el = document.createElement('link');
+        el.setAttribute('rel', rel);
+        head.appendChild(el);
+      }
+      el.setAttribute('href', href);
+      if (type) el.setAttribute('type', type);
+    }
+
+    upsertLink('icon', faviconHref, 'image/x-icon');
+    upsertLink('shortcut icon', faviconHref, 'image/x-icon');
+    upsertLink('apple-touch-icon', pngHref, 'image/png');
+  }
+
   function renderHeader() {
     const target = document.getElementById('site-header');
     if (!target) return;
@@ -88,6 +113,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', function () {
+    ensureFavicon();
     renderHeader();
     renderFooter();
   });

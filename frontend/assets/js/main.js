@@ -39,13 +39,13 @@
   }
 
   function applyMasks() {
-    document.querySelectorAll('input[name="Telefone"]').forEach((input) => {
+    document.querySelectorAll('input[type="tel"], input[name="Telefone"], input[name="WhatsApp"]').forEach((input) => {
       input.addEventListener('input', () => input.value = formatPhone(input.value));
     });
-    document.querySelectorAll('input[data-mask="cep"]').forEach((input) => {
+    document.querySelectorAll('input[data-mask="cep"], input[name^="CEP_"]').forEach((input) => {
       input.addEventListener('input', () => input.value = formatCEP(input.value));
     });
-    document.querySelectorAll('input[name="CPF_CNPJ"]').forEach((input) => {
+    document.querySelectorAll('input[name="CPF_CNPJ"], input[name="CNPJ_MEI"]').forEach((input) => {
       input.addEventListener('input', () => input.value = formatCpfCnpj(input.value));
     });
   }
@@ -122,15 +122,22 @@
       return { ok: false, skipped: true };
     }
 
-    const response = await fetch(CONFIG.googleScriptUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+    const formData = new URLSearchParams();
+    Object.keys(payload).forEach((key) => {
+      const value = payload[key];
+      formData.append(key, value == null ? '' : String(value));
     });
 
-    let data = {};
-    try { data = await response.json(); } catch (e) {}
-    return { ok: response.ok && data.success !== false, data };
+    try {
+      await fetch(CONFIG.googleScriptUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        body: formData
+      });
+      return { ok: true, opaque: true };
+    } catch (error) {
+      throw new Error('Não foi possível conectar ao envio da planilha. Verifique a URL publicada do Apps Script e as permissões do Web App.');
+    }
   }
 
   function buildWhatsAppMessage(payload) {
