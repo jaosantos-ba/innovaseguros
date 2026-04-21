@@ -1,10 +1,137 @@
 (function () {
   const DEFAULT_CONFIG = {
     whatsappNumber: '5571981125225',
-    googleScriptUrl: 'https://script.google.com/macros/s/AKfycbzcSiNYZQBEiVxgwgBZUKJYOR5BnnvDsbg-YONHK2sfJHrVVdTIA8MI28osSFauo_8b8A/exec'
+    googleScriptUrl: 'https://script.google.com/macros/s/AKfycbxaez2Npo9wnmS8k5bQGyQ0l_ctlFrzAKZ1U7ypM_-W5J3dlzeS6uc1McH7CFEfQzS-/exec'
   };
 
   const CONFIG = Object.assign({}, DEFAULT_CONFIG, window.INNOVA_CONFIG || {});
+
+  const COMMON_FIELD_ORDER = [
+    'Nome_Completo',
+    'Telefone',
+    'Email',
+    'CPF_CNPJ',
+    'Cidade_Regiao',
+    'Atendimento',
+    'Melhor_Horario',
+    'Canal_Retorno'
+  ];
+
+  const INSURANCE_FIELD_ORDER = {
+    auto: [
+      'Tipo_Veiculo', 'Marca_Veiculo', 'Modelo_Veiculo', 'Ano_Modelo', 'Ano_Fabricacao', 'Placa',
+      'Combustivel', 'Uso_Veiculo', 'CEP_Pernoite', 'Condutor_Principal_Nascimento', 'Condutor_Principal_Sexo',
+      'Estado_Civil', 'Profissao_Condutor', 'Bonus_Classe', 'Zero_km', 'Blindado',
+      'Garagem_Residencia', 'Garagem_Trabalho', 'Sinistro_5_Anos', 'Condutor_Jovem_Ate_25'
+    ],
+    moto: [
+      'Tipo_Veiculo', 'Marca_Veiculo', 'Modelo_Veiculo', 'Ano_Modelo', 'Ano_Fabricacao', 'Placa',
+      'Combustivel', 'Uso_Veiculo', 'CEP_Pernoite', 'Condutor_Principal_Nascimento', 'Condutor_Principal_Sexo',
+      'Estado_Civil', 'Profissao_Condutor', 'Sinistro_5_Anos', 'Condutor_Jovem_Ate_25'
+    ],
+    eletronicos: [
+      'Categoria_Aparelho', 'Marca_Aparelho', 'Modelo_Aparelho', 'Valor_Nota', 'Data_Compra',
+      'Possui_Nota_Fiscal', 'Uso_Predominante'
+    ],
+    residencial: [
+      'Tipo_Imovel', 'Finalidade_Imovel', 'Ocupacao_Imovel', 'Tipo_Construcao', 'Metragem_Aprox_m2',
+      'Valor_Imovel', 'Valor_Conteudo', 'Possui_Alarme', 'Condominio_Fechado', 'CEP_Imovel'
+    ],
+    vida: [
+      'Nascimento_Segurado_Vida', 'Profissao_Segurado_Vida', 'Renda_Mensal', 'Fumante', 'Esporte_Risco',
+      'Doenca_Preexistente', 'Capital_Segurado_Desejado', 'Numero_Dependentes'
+    ],
+    viagem: [
+      'Destino', 'Pais_Destino', 'Data_Ida', 'Data_Volta', 'Quantidade_Viajantes', 'Idades_Viajantes',
+      'Gestante', 'Cobertura_Esporte_Aventura'
+    ],
+    saude: [
+      'Modalidade_Plano', 'Tipo_Contratacao', 'Quantidade_Vidas', 'Faixas_Etarias', 'CNPJ_MEI',
+      'CNPJ_Ativo_6m', 'Abrangencia', 'Acomodacao', 'Coparticipacao', 'Nome_Empresa'
+    ],
+    odonto: [
+      'Modalidade_Plano', 'Tipo_Contratacao', 'Quantidade_Vidas', 'Faixas_Etarias', 'CNPJ_MEI',
+      'CNPJ_Ativo_6m', 'Abrangencia', 'Ortodontia', 'Nome_Empresa'
+    ]
+  };
+
+  const LABELS = {
+    Tipo_Seguro: 'Tipo de seguro',
+    Nome_Completo: 'Nome completo',
+    Telefone: 'WhatsApp',
+    Email: 'E-mail',
+    CPF_CNPJ: 'CPF',
+    Cidade_Regiao: 'Cidade ou região',
+    Atendimento: 'Preferência de atendimento',
+    Melhor_Horario: 'Melhor horário para contato',
+    Canal_Retorno: 'Canal de retorno preferido',
+    Tipo_Veiculo: 'Tipo de veículo',
+    Marca_Veiculo: 'Marca do veículo',
+    Modelo_Veiculo: 'Modelo do veículo',
+    Ano_Modelo: 'Ano/modelo',
+    Ano_Fabricacao: 'Ano de fabricação',
+    Placa: 'Placa',
+    Combustivel: 'Combustível',
+    Uso_Veiculo: 'Uso do veículo',
+    CEP_Pernoite: 'CEP de pernoite',
+    Condutor_Principal_Nascimento: 'Nascimento do condutor principal',
+    Condutor_Principal_Sexo: 'Sexo do condutor principal',
+    Estado_Civil: 'Estado civil',
+    Profissao_Condutor: 'Profissão do condutor',
+    Bonus_Classe: 'Classe de bônus',
+    Zero_km: 'Veículo zero km',
+    Blindado: 'Veículo blindado',
+    Garagem_Residencia: 'Possui garagem na residência',
+    Garagem_Trabalho: 'Possui garagem no trabalho',
+    Sinistro_5_Anos: 'Teve sinistro nos últimos 5 anos',
+    Condutor_Jovem_Ate_25: 'Há condutor jovem até 25 anos',
+    Categoria_Aparelho: 'Categoria do aparelho',
+    Marca_Aparelho: 'Marca do aparelho',
+    Modelo_Aparelho: 'Modelo do aparelho',
+    Valor_Nota: 'Valor da nota',
+    Data_Compra: 'Data da compra',
+    Possui_Nota_Fiscal: 'Possui nota fiscal',
+    Uso_Predominante: 'Uso predominante',
+    Tipo_Imovel: 'Tipo de imóvel',
+    Finalidade_Imovel: 'Finalidade do imóvel',
+    Ocupacao_Imovel: 'Ocupação do imóvel',
+    Tipo_Construcao: 'Tipo de construção',
+    Metragem_Aprox_m2: 'Metragem aproximada (m²)',
+    Valor_Imovel: 'Valor do imóvel',
+    Valor_Conteudo: 'Valor do conteúdo',
+    Possui_Alarme: 'Possui alarme',
+    Condominio_Fechado: 'Condomínio fechado',
+    CEP_Imovel: 'CEP do imóvel',
+    Nascimento_Segurado_Vida: 'Nascimento do segurado',
+    Profissao_Segurado_Vida: 'Profissão do segurado',
+    Renda_Mensal: 'Renda mensal',
+    Fumante: 'Fumante',
+    Esporte_Risco: 'Pratica esporte de risco',
+    Doenca_Preexistente: 'Doença preexistente',
+    Capital_Segurado_Desejado: 'Capital segurado desejado',
+    Numero_Dependentes: 'Número de dependentes',
+    Destino: 'Destino',
+    Pais_Destino: 'País de destino',
+    Data_Ida: 'Data de ida',
+    Data_Volta: 'Data de volta',
+    Quantidade_Viajantes: 'Quantidade de viajantes',
+    Idades_Viajantes: 'Idades dos viajantes',
+    Gestante: 'Gestante',
+    Cobertura_Esporte_Aventura: 'Cobertura para esporte/aventura',
+    Modalidade_Plano: 'Modalidade do plano',
+    Tipo_Contratacao: 'Tipo de contratação',
+    Quantidade_Vidas: 'Quantidade de vidas',
+    Faixas_Etarias: 'Faixas etárias',
+    CNPJ_MEI: 'CNPJ/MEI',
+    CNPJ_Ativo_6m: 'CNPJ ativo há 6 meses',
+    Abrangencia: 'Abrangência',
+    Acomodacao: 'Acomodação',
+    Coparticipacao: 'Coparticipação',
+    Nome_Empresa: 'Nome da empresa',
+    Ortodontia: 'Ortodontia',
+    Observacoes_Gerais: 'Observações adicionais',
+    LGPD_Consentimento: 'Consentimento LGPD'
+  };
 
   function onlyDigits(value) {
     return String(value || '').replace(/\D+/g, '');
@@ -140,17 +267,86 @@
     }
   }
 
-  function buildWhatsAppMessage(payload) {
-    const linhas = [
-      `Olá! Quero avançar com uma cotação da Innova.`,
-      `Seguro: ${payload.Tipo_Seguro || '-'}`,
-      `Nome: ${payload.Nome_Completo || '-'}`,
-      `Telefone: ${payload.Telefone || '-'}`
+  function normalizeInsuranceKey(value) {
+    const raw = String(value || '').trim().toLowerCase();
+    const normalized = raw
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/plano\s+de\s+/g, '')
+      .replace(/seguro\s+de\s+/g, '')
+      .replace(/seguro\s+/g, '')
+      .replace(/[^a-z0-9]+/g, '');
+
+    const map = {
+      auto: 'auto',
+      moto: 'moto',
+      eletronico: 'eletronicos',
+      eletronicos: 'eletronicos',
+      residencial: 'residencial',
+      vida: 'vida',
+      viagem: 'viagem',
+      saude: 'saude',
+      odontologico: 'odonto',
+      odonto: 'odonto'
+    };
+
+    return map[normalized] || normalized;
+  }
+
+  function getOrderedFieldNames(payload) {
+    const insuranceKey = normalizeInsuranceKey(payload.Tipo_Seguro);
+    const ordered = ['Tipo_Seguro', ...COMMON_FIELD_ORDER, ...(INSURANCE_FIELD_ORDER[insuranceKey] || []), 'Observacoes_Gerais', 'LGPD_Consentimento'];
+    const unique = [];
+
+    ordered.forEach((name) => {
+      if (!unique.includes(name)) unique.push(name);
+    });
+
+    Object.keys(payload).forEach((name) => {
+      if (!unique.includes(name)) unique.push(name);
+    });
+
+    return unique;
+  }
+
+  function shouldIncludeInWhatsApp(name, value) {
+    if (value == null) return false;
+    const text = String(value).trim();
+    if (!text) return false;
+
+    const excluded = [
+      'Origem', 'Data_Hora_Entrada', 'URL_Origem', 'Pagina_Origem',
+      'UTM_Source', 'UTM_Medium', 'UTM_Campaign', 'LGPD_Data_Hora'
     ];
-    if (payload.Email) linhas.push(`E-mail: ${payload.Email}`);
-    if (payload.Cidade_Regiao) linhas.push(`Região: ${payload.Cidade_Regiao}`);
-    if (payload.Observacoes_Gerais) linhas.push(`Observações: ${payload.Observacoes_Gerais}`);
-    return linhas.join('\n');
+
+    return !excluded.includes(name);
+  }
+
+  function getFieldLabel(name) {
+    return LABELS[name] || name.replace(/_/g, ' ');
+  }
+
+  function buildWhatsAppMessage(payload) {
+    const insuranceKey = normalizeInsuranceKey(payload.Tipo_Seguro);
+    const lines = [
+      'Olá! Quero avançar com uma cotação da Innova.',
+      '',
+      '*Resumo do formulário*'
+    ];
+
+    const orderedFields = getOrderedFieldNames(payload);
+
+    orderedFields.forEach((name) => {
+      const value = payload[name];
+      if (!shouldIncludeInWhatsApp(name, value)) return;
+      lines.push(`${getFieldLabel(name)}: ${value}`);
+    });
+
+    if (insuranceKey && INSURANCE_FIELD_ORDER[insuranceKey]) {
+      lines.push('', 'Aguardo o retorno com a análise inicial da cotação.');
+    }
+
+    return lines.join('\n');
   }
 
   function openWhatsApp(payload) {

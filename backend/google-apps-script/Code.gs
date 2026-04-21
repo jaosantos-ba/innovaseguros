@@ -1,9 +1,82 @@
+/**
+ * =========================================================
+ * INNOVA CORRETORA DE SEGUROS
+ * Google Apps Script - múltiplas planilhas por tipo de seguro
+ * =========================================================
+ *
+ * O que este script faz:
+ * 1. Recebe os dados enviados pelo formulário do site
+ * 2. Identifica o tipo de seguro (Auto, Moto, Vida, etc.)
+ * 3. Escolhe a planilha correta com base no tipo de seguro
+ * 4. Localiza a aba "Leads"
+ * 5. Lê os cabeçalhos da linha 2
+ * 6. Monta a linha de dados
+ * 7. Grava o lead na próxima linha disponível
+ *
+ * IMPORTANTE:
+ * - Você precisa preencher os IDs das planilhas abaixo
+ * - Em cada planilha precisa existir uma aba chamada "Leads"
+ * - Os cabeçalhos devem estar na linha 2
+ */
+
+
+/**
+ * =========================================================
+ * CONFIGURAÇÕES PRINCIPAIS
+ * =========================================================
+ */
 const CONFIG = {
-  SPREADSHEET_ID: '1ZEPUPoH5IWhew2Skn-CQFHs_UR0HklORu46RvDeba_o',
+  /**
+   * Nome da aba onde os leads serão gravados
+   * Deve existir em TODAS as planilhas
+   */
   SHEET_NAME: 'Leads',
-  HEADER_ROW: 2
+
+  /**
+   * Linha onde estão os cabeçalhos da planilha
+   * Exemplo:
+   * Linha 1 = título visual
+   * Linha 2 = cabeçalhos reais
+   */
+  HEADER_ROW: 2,
+
+  /**
+   * IDs das planilhas por tipo de seguro
+   *
+   * COMO PEGAR O ID:
+   * Se a URL da planilha for:
+   * https://docs.google.com/spreadsheets/d/1ABCxyz1234567890/edit
+   *
+   * O ID será:
+   * 1ABCxyz1234567890
+   */
+  SPREADSHEET_IDS_BY_INSURANCE: {
+    auto: '13RNonmhKAWTLhLqMRoVIGj-ar3uSTqV0jcFziEI4m-0',
+    moto: '1oad4okmXXGculHD8vK_RLGy85L_0jmZWkiuxlX30e60',
+    eletronicos: '19MKcFVHhanyQJ5LuIdiFjuszCwS9JlPtokVRCy1ZaJ8',
+    residencial: '1Y_3DdMMIGesmYk2NZ7Z2DWMyv3IuS2weAXCN83UUr7U',
+    vida: '1z_OuBL8CEq8St018z9v1-dSOAuyoIvN4Ix_cC5cXrx0',
+    viagem: '1G7lMXNfHFns0onvg7X77C38HBqC4Yx2KtQBRtUBd0NY',
+    saude: '1FGa78uev722OKu0kfIjVtDQPt98f2FOFOHmEpsjL54Q',
+    odonto: '1weZC9y5n2eo8HUFhAw_s-6W1f3dfVjuaMHWVtZLpnjU'
+  }
 };
 
+
+/**
+ * =========================================================
+ * ALIASES DE CAMPOS
+ * =========================================================
+ *
+ * Serve para aceitar tanto:
+ * - nomes simples vindos do frontend
+ * quanto:
+ * - nomes exatos dos cabeçalhos da planilha
+ *
+ * Exemplo:
+ * Se o frontend enviar "nome",
+ * o script converte para "Nome_Completo"
+ */
 const FIELD_ALIASES = {
   nome: 'Nome_Completo',
   nomeCompleto: 'Nome_Completo',
@@ -101,31 +174,70 @@ const FIELD_ALIASES = {
   interesseOrtodontia: 'Interesse_Ortodontia'
 };
 
-function doGet(e) {
+
+/**
+ * =========================================================
+ * TESTE RÁPIDO DO WEB APP
+ * =========================================================
+ *
+ * Quando você abrir a URL do Web App no navegador,
+ * esse método responde informando que está ativo.
+ */
+function doGet() {
   return jsonOutput({
     ok: true,
     message: 'Web App ativo'
   });
 }
 
+
+/**
+ * =========================================================
+ * RECEBIMENTO DOS DADOS DO FORMULÁRIO
+ * =========================================================
+ *
+ * Esse é o ponto principal.
+ * O site envia os dados para cá via POST.
+ */
 function doPost(e) {
   try {
+    // 1. Lê os dados enviados pelo site
     const payload = parseRequestData_(e);
-    const sheet = getSheet_();
+
+    // 2. Normaliza nomes de campos e valores
+    const normalizedPayload = normalizePayload_(payload);
+
+    // 3. Descobre qual é o tipo de seguro enviado
+    const insuranceKey = getInsuranceKey_(normalizedPayload);
+
+    // 4. Pega o ID da planilha correta
+    const spreadsheetId = getSpreadsheetIdByInsurance_(insuranceKey);
+
+    // 5. Abre a planilha correta e a aba Leads
+    const sheet = getSheet_(spreadsheetId);
+
+    // 6. Lê os cabeçalhos da linha 2
     const headers = getHeaders_(sheet);
 
-    const normalizedPayload = normalizePayload_(payload);
+    // 7. Monta a linha respeitando a ordem das colunas
     const row = buildRowFromHeaders_(headers, normalizedPayload);
 
+    // 8. Descobre a próxima linha vazia
     const nextRow = sheet.getLastRow() + 1;
+
+    // 9. Grava a linha
     sheet.getRange(nextRow, 1, 1, row.length).setValues([row]);
 
+    // 10. Retorna sucesso
     return jsonOutput({
       ok: true,
       message: 'Lead gravado com sucesso',
+      insurance: insuranceKey,
       row: nextRow
     });
+
   } catch (error) {
+    // Em caso de erro, responde com mensagem clara
     return jsonOutput({
       ok: false,
       message: error.message
@@ -133,24 +245,39 @@ function doPost(e) {
   }
 }
 
+
+/**
+ * =========================================================
+ * LÊ OS DADOS RECEBIDOS DO FRONTEND
+ * =========================================================
+ *
+ * Esse método tenta ler:
+ * - e.parameter (form-urlencoded)
+ * - JSON puro, se existir
+ */
 function parseRequestData_(e) {
   const data = {};
 
+  // Dados recebidos em formato tradicional de formulário
   if (e && e.parameter) {
     Object.keys(e.parameter).forEach(function(key) {
       data[key] = e.parameter[key];
     });
   }
 
+  // Caso venha body cru no postData
   if (e && e.postData && e.postData.contents) {
     const raw = e.postData.contents;
     const type = (e.postData.type || '').toLowerCase();
 
+    // Se vier JSON
     if (type.indexOf('application/json') !== -1) {
       const json = JSON.parse(raw);
       Object.keys(json).forEach(function(key) {
         data[key] = json[key];
       });
+
+    // Se vier form-urlencoded
     } else if (type.indexOf('application/x-www-form-urlencoded') !== -1) {
       const parsed = parseQueryString_(raw);
       Object.keys(parsed).forEach(function(key) {
@@ -162,6 +289,15 @@ function parseRequestData_(e) {
   return data;
 }
 
+
+/**
+ * =========================================================
+ * FAZ O PARSE DE UMA QUERY STRING
+ * =========================================================
+ *
+ * Exemplo:
+ * nome=Jose&telefone=71999999999
+ */
 function parseQueryString_(query) {
   const obj = {};
   if (!query) return obj;
@@ -176,37 +312,16 @@ function parseQueryString_(query) {
   return obj;
 }
 
-function getSheet_() {
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-  const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
 
-  if (!sheet) {
-    throw new Error('A aba "' + CONFIG.SHEET_NAME + '" não foi encontrada.');
-  }
-
-  return sheet;
-}
-
-function getHeaders_(sheet) {
-  const lastColumn = sheet.getLastColumn();
-  if (lastColumn === 0) {
-    throw new Error('A aba Leads está sem colunas.');
-  }
-
-  const headers = sheet
-    .getRange(CONFIG.HEADER_ROW, 1, 1, lastColumn)
-    .getValues()[0]
-    .map(function(h) {
-      return String(h || '').trim();
-    });
-
-  if (!headers.some(Boolean)) {
-    throw new Error('A linha de cabeçalho configurada está vazia.');
-  }
-
-  return headers;
-}
-
+/**
+ * =========================================================
+ * NORMALIZA OS CAMPOS RECEBIDOS
+ * =========================================================
+ *
+ * Converte aliases em nomes oficiais de coluna.
+ * Exemplo:
+ * nome -> Nome_Completo
+ */
 function normalizePayload_(payload) {
   const normalized = {};
 
@@ -216,6 +331,7 @@ function normalizePayload_(payload) {
     normalized[mappedKey] = sanitizeValue_(value);
   });
 
+  // Preenchimentos automáticos caso não venham do frontend
   if (!normalized.Data_Recebimento) {
     normalized.Data_Recebimento = new Date();
   }
@@ -231,6 +347,12 @@ function normalizePayload_(payload) {
   return normalized;
 }
 
+
+/**
+ * =========================================================
+ * LIMPA E PADRONIZA VALORES
+ * =========================================================
+ */
 function sanitizeValue_(value) {
   if (value === null || value === undefined) return '';
 
@@ -245,10 +367,115 @@ function sanitizeValue_(value) {
   return String(value).trim();
 }
 
+
+/**
+ * =========================================================
+ * DESCOBRE O TIPO DE SEGURO
+ * =========================================================
+ *
+ * O frontend geralmente envia:
+ * Tipo_Seguro = Auto / Moto / Vida / etc.
+ *
+ * Esse método transforma isso em uma chave interna:
+ * auto, moto, vida...
+ */
+function getInsuranceKey_(payload) {
+  const rawType = String(payload.Tipo_Seguro || '').toLowerCase().trim();
+
+  if (!rawType) {
+    throw new Error('Tipo_Seguro não foi enviado pelo formulário.');
+  }
+
+  if (rawType.indexOf('auto') !== -1) return 'auto';
+  if (rawType.indexOf('moto') !== -1) return 'moto';
+  if (rawType.indexOf('eletr') !== -1) return 'eletronicos';
+  if (rawType.indexOf('resid') !== -1) return 'residencial';
+  if (rawType.indexOf('vida') !== -1) return 'vida';
+  if (rawType.indexOf('viag') !== -1) return 'viagem';
+  if (rawType.indexOf('sa') !== -1) return 'saude';
+  if (rawType.indexOf('odont') !== -1) return 'odonto';
+
+  throw new Error('Tipo_Seguro não reconhecido: ' + payload.Tipo_Seguro);
+}
+
+
+/**
+ * =========================================================
+ * RETORNA O ID DA PLANILHA PELO TIPO DE SEGURO
+ * =========================================================
+ */
+function getSpreadsheetIdByInsurance_(insuranceKey) {
+  const spreadsheetId = CONFIG.SPREADSHEET_IDS_BY_INSURANCE[insuranceKey];
+
+  if (!spreadsheetId || spreadsheetId.indexOf('COLE_AQUI') !== -1) {
+    throw new Error(
+      'ID da planilha não configurado para o seguro: ' + insuranceKey
+    );
+  }
+
+  return spreadsheetId;
+}
+
+
+/**
+ * =========================================================
+ * ABRE A PLANILHA E PEGA A ABA Leads
+ * =========================================================
+ */
+function getSheet_(spreadsheetId) {
+  const ss = SpreadsheetApp.openById(spreadsheetId);
+  const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+
+  if (!sheet) {
+    throw new Error(
+      'A aba "' + CONFIG.SHEET_NAME + '" não foi encontrada na planilha.'
+    );
+  }
+
+  return sheet;
+}
+
+
+/**
+ * =========================================================
+ * LÊ OS CABEÇALHOS DA LINHA CONFIGURADA
+ * =========================================================
+ */
+function getHeaders_(sheet) {
+  const lastColumn = sheet.getLastColumn();
+
+  if (lastColumn === 0) {
+    throw new Error('A aba Leads está sem colunas.');
+  }
+
+  const headers = sheet
+    .getRange(CONFIG.HEADER_ROW, 1, 1, lastColumn)
+    .getValues()[0]
+    .map(function(h) {
+      return String(h || '').trim();
+    });
+
+  if (!headers.some(Boolean)) {
+    throw new Error('A linha de cabeçalhos está vazia.');
+  }
+
+  return headers;
+}
+
+
+/**
+ * =========================================================
+ * MONTA A LINHA NA MESMA ORDEM DOS CABEÇALHOS
+ * =========================================================
+ *
+ * Se a coluna existir no cabeçalho, o valor é colocado nela.
+ * Se não existir, fica vazio.
+ */
 function buildRowFromHeaders_(headers, payload) {
   return headers.map(function(header) {
     if (!header) return '';
 
+    // Se não existir Data_Recebimento no payload, preenche automaticamente
     if (header === 'Data_Recebimento' && !payload[header]) {
       return new Date();
     }
@@ -257,6 +484,12 @@ function buildRowFromHeaders_(headers, payload) {
   });
 }
 
+
+/**
+ * =========================================================
+ * RETORNA JSON PARA O FRONTEND
+ * =========================================================
+ */
 function jsonOutput(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
